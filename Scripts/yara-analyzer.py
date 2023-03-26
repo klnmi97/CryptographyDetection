@@ -4,25 +4,30 @@ import argparse
 
 DEFAULT_RULES_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'crypto_signatures.yara')
 
-def parse_yara_output(yara_output):
+def parse_yara_output(yara_output, rule_stats=None):
     # Parse the YARA output and print the matches
     for match in yara_output:
-        print("Matched rule:", match.rule)
-        print("Matched strings:")
-        for string in match.strings:
-            print("  - offset:", string[0])
-            print("    value:", string[1])
-            print("    identifier:", string[2])
+        # Add rule to the statistics
+        rule_stats[match.rule] = rule_stats.get(match.rule, 0) + 1
 
-def analyze_file(filepath, rules):
+        #print("Matched rule:", match.rule)
+        #print("Matched strings:")
+        #for string in match.strings:
+            #print("  - offset:", string[0])
+            #print("    value:", string[1])
+            #print("    identifier:", string[2])
+            
+
+def analyze_file(filepath, rules, rule_stats=None):
     matches = rules.match(filepath)
     if matches:
-        print("File:", filepath)
-        parse_yara_output(matches)
+        #print("File:", filepath)
+        parse_yara_output(matches, rule_stats)
 
 
 def run(filepath, rules_path=DEFAULT_RULES_FILE):
 
+    stats = {}
     # Check rules file
     if not os.path.isfile(rules_path):
         print(f"Error, file {rules_path} does not exist")
@@ -34,7 +39,7 @@ def run(filepath, rules_path=DEFAULT_RULES_FILE):
     if isinstance(filepath, list):
         # Analyze each file using the YARA rules
         for filepath in filepath:
-            analyze_file(filepath, rules)
+            analyze_file(filepath, rules, stats)
     elif os.path.isdir(filepath):
             # Handle the folder here.
             print(f"Handling folder: {filepath}")
@@ -42,16 +47,20 @@ def run(filepath, rules_path=DEFAULT_RULES_FILE):
                 file_path = os.path.join(filepath, file_name)
                 if os.path.isfile(file_path):
                     # Handle the file here.
-                    analyze_file(file_path, rules)
+                    analyze_file(file_path, rules, stats)
                 else:
                     pass
                     #print(f"  - Skipping non-file: {file_path}")
     elif os.path.isfile(filepath):
         # Handle the file here.
         print(f"Handling file: {filepath}")
-        analyze_file(filepath, rules)
+        analyze_file(filepath, rules, stats)
     else:
         print(f"Error: {filepath} is not a valid path.")
+
+
+    for rule in stats:
+        print(f"{rule}: {stats[rule]}")
 
 def main():
     # Parse command line arguments
