@@ -9,7 +9,8 @@ def build_shell_command(command, arguments_list: list()):
 
 def detect_packers(path):
     """ Try to detect packers using Detect It Easy
-    commandline tool. """
+    commandline tool. 
+    Requires diec command line tool. """
     files = glob.glob(path + "/*")
     output = {}
 
@@ -63,9 +64,32 @@ def parse_diec_output(data: dict()):
     return packed_samples
     
     
+def unpack(path, samples: list(), debug = False):
+
+    # Create directory for unpacked samples
+    output_dir = os.path.join(path, "unpacked")
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    # Call unipacker for each sample
+    for sample in samples:
+        sample_path = os.path.join(path, sample)
+
+        args = []
+        args.append("-d")
+        args.append(output_dir)
+        args.append(sample_path)
+        cmd = build_shell_command("unipacker", args)
+        output = os.popen(cmd).read()
+        if debug:
+            print(output)
+
+    return output_dir
 
 #out = "/home/kali/Documents/Workspace/subsetNormal-packers-info.json"
 #samples_folder = "/home/kali/Documents/Samples/malware_nocompression"
 #result = detect_packers(samples_folder)
 
 #packed_samples = parse_diec_output(result)
+
+#unpack("/home/kali/Documents/Samples/malware_nocompression/", ["7bd45c7bf1b6b211ba04acd289b7e3bc7f4b2d529afe8c2ba2f8aed83058fa0e"])
