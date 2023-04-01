@@ -4,61 +4,57 @@ from crylib import find_const, find_api, pe_import, stackstrings
 from crylib.constants.CryptoConstants import constants as cryptoConstants
 from crylib.constants.CryptoAPI import apis as cryptoAPIs
 import logging
+import json
 
-import contextlib
-import io
-import sys
-
-# class DummyFile(object):
-#     def write(self, x): pass
-
-# @contextlib.contextmanager
-# def nostdout():
-#     save_stdout = sys.stdout
-#     save_stderr = sys.stderr
-#     sys.stdout = DummyFile()
-#     sys.stderr = DummyFile()
-#     yield
-#     sys.stdout = save_stdout
-#     sys.stderr = save_stderr
 
 def analyze_file(file, stats=None, log = False):
     constants, apis = cryptoConstants, cryptoAPIs
     results = []
+    primitives = set()
+    rules_map = {}
     
     logging.info(f"File: {file}")
     
     with open(file, 'rb') as f:
             binary = f.read()
 
+    # load mapping from file
+    script_path = os.path.dirname(os.path.realpath(__file__))
+    map_path = os.path.join(script_path, 'mapping.json')
+    with open(map_path, 'r') as f:
+        rules_map = json.load(f)
+
     # Searching for constants
-    #with nostdout():
     results = find_const(binary, constants) # TODO: add timeout? See 1ac6cc5e508c156e28ead649bba143d28c1263ace5c136cb4fe9a7bbbc28943c
     for result in results:
-        stats[result.name] = stats.get(result.name, 0) + 1
+        primitives.add(rules_map.get(result.name, result.name))
+        #stats[result.name] = stats.get(result.name, 0) + 1
 
 
     # Searching for API
-    #with nostdout():
     results = find_api(binary, apis)
     for result in results:
         logging.info("[+] DLL API - %s", result["name"])
-        stats[result["name"]] = stats.get(result["name"], 0) + 1
+        #stats[result["name"]] = stats.get(result["name"], 0) + 1
+        primitives.add(rules_map.get(result["name"], result["name"]))
         #if not summary:
         #for function in result['functions']:
         #    print(f'    | {function["name"]}: {", ".join([hex(address) for address in function["addresses"]])}')
 
     # Searching for API in PE Import Tables
     try:
-        #with nostdout():
         results = pe_import(binary)
         for result in results:
             #print(f'[+] {result["dll"]}: {result["function"]}')
-            stats[result["dll"]] = stats.get(result["dll"], 0) + 1
+            #stats[result["dll"]] = stats.get(result["dll"], 0) + 1
+            primitives.add(rules_map.get(result["dll"], result["dll"]))
         if not results:
             logging.info('[-] PE Import Tables - Nothing Found')
     except (ImportError, ValueError) as e:
         logging.error('[-] %s', e)
+    # Add algorithms from the set to statistics
+    for item in primitives:
+         stats[item] = stats.get(item, 0) + 1
 
 
 def run(filepath, log = False):
@@ -90,8 +86,9 @@ def run(filepath, log = False):
         logging.error("Error: %s is not a valid path.", filepath)
 
 
-    for rule in stats:
-        print(f"{rule}: {stats[rule]}")
+    return stats
+    #for rule in stats:
+    #    print(f"{rule}: {stats[rule]}")
 
 
 def main():

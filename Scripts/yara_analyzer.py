@@ -2,14 +2,26 @@ import yara
 import os
 import argparse
 import logging
+import json
 
 DEFAULT_RULES_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'crypto_signatures.yara')
 
 def parse_yara_output(yara_output, rule_stats=None):
-    # Parse the YARA output and print the matches
+
+    primitives = set()
+    rules_map = {}
+    script_path = os.path.dirname(os.path.realpath(__file__))
+    map_path = os.path.join(script_path, 'mapping.json')
+    # load mapping from file
+    with open(map_path, 'r') as f:
+        rules_map = json.load(f)
+
+    # Parse the YARA output and map signatures to algorithms
     for match in yara_output:
         # Add rule to the statistics
-        rule_stats[match.rule] = rule_stats.get(match.rule, 0) + 1
+
+        primitives.add(rules_map.get(match.rule, "Other"))
+       
 
         #print("Matched rule:", match.rule)
         #print("Matched strings:")
@@ -17,6 +29,8 @@ def parse_yara_output(yara_output, rule_stats=None):
             #print("  - offset:", string[0])
             #print("    value:", string[1])
             #print("    identifier:", string[2])
+    for item in primitives:
+         rule_stats[item] = rule_stats.get(item, 0) + 1
             
 
 def analyze_file(filepath, rules, rule_stats=None):
@@ -62,9 +76,9 @@ def run(filepath, rules_path=DEFAULT_RULES_FILE):
     else:
         logging.error("Error: %s is not a valid path.", filepath)
 
-
-    for rule in stats:
-        print(f"{rule}: {stats[rule]}")
+    return stats
+    #for rule in stats:
+    #    print(f"{rule}: {stats[rule]}")
 
 def main():
     # Parse command line arguments

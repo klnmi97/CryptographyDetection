@@ -106,7 +106,14 @@ def configure_logger(enabled):
         # disable error log for cryfind using lief
         lief.logging.disable()
 
+def print_results(data):
+    for rule in data:
+        print(f"{rule}: {data[rule]}") 
+
 def main():
+
+    yara_result = {}
+    cryfind_result = {}
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Dataset analysis pipeline")
     parser.add_argument("path", help="File or directory to analyze")
@@ -120,15 +127,23 @@ def main():
 
     if args.tool == 'yara':
         with timer():
-            yara_analyzer.run(args.path)
+            yara_result = yara_analyzer.run(args.path)
+        print_results(yara_result)
+
     elif args.tool == 'cryfind':
         with timer():
-            cryfind_analyzer.run(args.path)
+            cryfind_result = cryfind_analyzer.run(args.path)
+        print_results(cryfind_result)
+
+    elif args.tool == 'all':
+        with timer():
+            yara_result = yara_analyzer.run(args.path)
+        with timer():
+            cryfind_result = cryfind_analyzer.run(args.path)
+        print_results(yara_result)
+        print_results(cryfind_result)
     else:
-        with timer():
-            yara_analyzer.run(args.path)
-        with timer():
-            cryfind_analyzer.run(args.path)
+        print("Unknown option {}".format(args.tool))
 
 if __name__ == "__main__":
     main()
