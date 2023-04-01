@@ -1,6 +1,7 @@
 from ast import arg
 import os
 import glob
+import argparse
 
 samples_folder = "/home/kali/Downloads/Windows"
 samples_folder = "/home/kali/Documents/Samples/malware_nocompression"
@@ -74,4 +75,60 @@ yara_args = ["-s", "-r", yara_rules_path]
 #iterate_samples(samples_folder, yara_cmd, yara_args, [], yara_out_folder)
 
 out = "/home/kali/Documents/Workspace/subsetNormal-packers-info.json"
-checkPackers(samples_folder, out)
+#checkPackers(samples_folder, out)
+
+import logging
+import sys
+import yara_analyzer
+import cryfind_analyzer
+import time
+import lief
+import contextlib
+
+root = logging.getLogger()
+
+@contextlib.contextmanager
+def timer():
+    start = time.time()
+    yield
+    end = time.time()
+    print('Analysis took {} seconds'.format(end - start))
+
+def configure_logger(enabled):
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(logging.INFO)
+    root.addHandler(handler)
+    if not enabled:
+        root.disabled = True
+        # disable error log for cryfind using lief
+        lief.logging.disable()
+
+def main():
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Dataset analysis pipeline")
+    parser.add_argument("path", help="File or directory to analyze")
+    parser.add_argument('--tool', choices=['yara', 'cryfind', 'all'], default='all', help='Analysis tool to be used (default: all)')
+    parser.add_argument('--log', dest='logging', action='store_true', default=False, help='Enable logging')
+    args = parser.parse_args()
+
+
+    configure_logger(args.logging)
+
+
+    if args.tool == 'yara':
+        with timer():
+            yara_analyzer.run(args.path)
+    elif args.tool == 'cryfind':
+        with timer():
+            cryfind_analyzer.run(args.path)
+    else:
+        with timer():
+            yara_analyzer.run(args.path)
+        with timer():
+            cryfind_analyzer.run(args.path)
+
+if __name__ == "__main__":
+    main()

@@ -1,6 +1,7 @@
 import yara
 import os
 import argparse
+import logging
 
 DEFAULT_RULES_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'crypto_signatures.yara')
 
@@ -21,11 +22,13 @@ def parse_yara_output(yara_output, rule_stats=None):
 def analyze_file(filepath, rules, rule_stats=None):
     matches = rules.match(filepath)
     if matches:
-        #print("File:", filepath)
+        logging.info("Analyzing file: %s", filepath)
         parse_yara_output(matches, rule_stats)
 
 
 def run(filepath, rules_path=DEFAULT_RULES_FILE):
+
+    logging.info("Running yara analyzer.")
 
     stats = {}
     # Check rules file
@@ -43,20 +46,21 @@ def run(filepath, rules_path=DEFAULT_RULES_FILE):
     elif os.path.isdir(filepath):
             # Handle the folder here.
             print(f"Handling folder: {filepath}")
+            logging.info("Handling directory: %s", filepath)
             for file_name in os.listdir(filepath):
                 file_path = os.path.join(filepath, file_name)
                 if os.path.isfile(file_path):
                     # Handle the file here.
                     analyze_file(file_path, rules, stats)
                 else:
-                    pass
-                    #print(f"  - Skipping non-file: {file_path}")
+                    #pass
+                    logging.info(f"    Skipping non-file: {file_path}")
     elif os.path.isfile(filepath):
         # Handle the file here.
-        print(f"Handling file: {filepath}")
+        logging.info("Handling file: %s", filepath)
         analyze_file(filepath, rules, stats)
     else:
-        print(f"Error: {filepath} is not a valid path.")
+        logging.error("Error: %s is not a valid path.", filepath)
 
 
     for rule in stats:
