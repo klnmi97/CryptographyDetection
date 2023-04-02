@@ -57,7 +57,21 @@ def analyze_file(file, stats=None, log = False):
          stats[item] = stats.get(item, 0) + 1
 
 
-def run(filepath, log = False):
+def handle_directory(path, exclude, stats=None):
+    # Handle the folder here.
+            print('Handling folder: %s' % path)
+            for file_name in os.listdir(path):
+                file_path = os.path.join(path, file_name)
+                if os.path.isfile(file_path):
+                    if file_name in exclude:
+                        continue
+                    # Handle the file here.
+                    analyze_file(file_path, stats)
+                else:
+                    pass
+                    #print(f"  - Skipping non-file: {file_path}")
+
+def run(filepath, exclude = list(), log = False):
 
     logging.info("Starting cryfind analyzer.")
 
@@ -68,16 +82,7 @@ def run(filepath, log = False):
         for filepath in filepath:
             analyze_file(filepath, stats)
     elif os.path.isdir(filepath):
-            # Handle the folder here.
-            print('Handling folder: %s', filepath)
-            for file_name in os.listdir(filepath):
-                file_path = os.path.join(filepath, file_name)
-                if os.path.isfile(file_path):
-                    # Handle the file here.
-                    analyze_file(file_path, stats)
-                else:
-                    pass
-                    #print(f"  - Skipping non-file: {file_path}")
+            handle_directory(filepath, exclude, stats)
     elif os.path.isfile(filepath):
         # Handle the file here.
         print("Handling file: %s", filepath)

@@ -107,6 +107,13 @@ def configure_logger(enabled):
         # disable error log for cryfind using lief
         lief.logging.disable()
 
+def merge_dicts(dict1, dict2):
+    for key, value in dict2.items():
+        if key in dict1:
+            dict1[key] += value
+        else:
+            dict1[key] = value
+
 def print_results(data):
     for rule in data:
         print(f"{rule}: {data[rule]}") 
@@ -115,6 +122,8 @@ def main():
 
     yara_result = {}
     cryfind_result = {}
+    unpacked_path = ''
+    unpacked_samples = []
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Dataset analysis pipeline")
     parser.add_argument("path", help="File or directory to analyze")
@@ -130,25 +139,36 @@ def main():
         packing_analyzer.analyze(args.path)
     elif args.packing == 'unpack':
         result = packing_analyzer.analyze(args.path)
-        unpacked_path = packing_analyzer.unpack(args.path, result)
-
-
+        unpacked_path, unpacked_samples = packing_analyzer.unpack(args.path, result)
 
     if args.tool == 'yara':
         with timer():
-            yara_result = yara_analyzer.run(args.path)
+            yara_result = yara_analyzer.run(args.path, unpacked_samples)
+            unpacked_result = yara_analyzer.run(unpacked_path) 
+        merge_dicts(yara_result, unpacked_result)
         print_results(yara_result)
 
     elif args.tool == 'cryfind':
         with timer():
-            cryfind_result = cryfind_analyzer.run(args.path)
+            cryfind_result = cryfind_analyzer.run(args.path, unpacked_samples)
+            unpacked_result = cryfind_analyzer.run(unpacked_path)
+        merge_dicts(cryfind_result, unpacked_result)
         print_results(cryfind_result)
 
     elif args.tool == 'all':
+        # Run yara
         with timer():
-            yara_result = yara_analyzer.run(args.path)
+            yara_result = yara_analyzer.run(args.path, unpacked_samples)
+            unpacked_result = yara_analyzer.run(unpacked_path) 
+        merge_dicts(yara_result, unpacked_result)
+
+        # Run cryfind
+        unpacked_result = {}
         with timer():
-            cryfind_result = cryfind_analyzer.run(args.path)
+            cryfind_result = cryfind_analyzer.run(args.path, unpacked_samples)
+            unpacked_result = cryfind_analyzer.run(unpacked_path)
+        merge_dicts(cryfind_result, unpacked_result)
+        
         print_results(yara_result)
         print_results(cryfind_result)
     else:

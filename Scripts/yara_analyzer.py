@@ -40,7 +40,22 @@ def analyze_file(filepath, rules, rule_stats=None):
         parse_yara_output(matches, rule_stats)
 
 
-def run(filepath, rules_path=DEFAULT_RULES_FILE):
+def handle_directory(path, exclude, rules, stats=None):
+    # Handle the folder here.
+    print(f"Handling folder: {path}")
+    logging.info("Handling directory: %s", path)
+    for file_name in os.listdir(path):
+        if file_name in exclude:
+            continue
+        file_path = os.path.join(path, file_name)
+        if os.path.isfile(file_path):
+            # Handle the file here.
+            analyze_file(file_path, rules, stats)
+        else:
+            #pass
+            logging.info(f"    Skipping non-file: {file_path}")
+
+def run(filepath, exclude = list(), rules_path=DEFAULT_RULES_FILE):
 
     logging.info("Running yara analyzer.")
 
@@ -56,19 +71,13 @@ def run(filepath, rules_path=DEFAULT_RULES_FILE):
     if isinstance(filepath, list):
         # Analyze each file using the YARA rules
         for filepath in filepath:
+            if os.path.isdir(filepath):
+                handle_directory(filepath, exclude, rules, stats)
+            elif os.path.isfile(filepath):
+                analyze_file(filepath, rules, stats)
             analyze_file(filepath, rules, stats)
     elif os.path.isdir(filepath):
-            # Handle the folder here.
-            print(f"Handling folder: {filepath}")
-            logging.info("Handling directory: %s", filepath)
-            for file_name in os.listdir(filepath):
-                file_path = os.path.join(filepath, file_name)
-                if os.path.isfile(file_path):
-                    # Handle the file here.
-                    analyze_file(file_path, rules, stats)
-                else:
-                    #pass
-                    logging.info(f"    Skipping non-file: {file_path}")
+            handle_directory(filepath, exclude, rules, stats)
     elif os.path.isfile(filepath):
         # Handle the file here.
         logging.info("Handling file: %s", filepath)

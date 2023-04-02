@@ -193,7 +193,8 @@ def unpack(path, sample_list):
     upx = filter_packer(sample_list, "UPX")
     unpacked_path = unpack_upx(path, upx)
 
-    return unpacked_path
+    # Return new path and list of unpacked samples
+    return unpacked_path, upx
     #unpack("/home/kali/Documents/Samples/malware_nocompression/", ["7bd45c7bf1b6b211ba04acd289b7e3bc7f4b2d529afe8c2ba2f8aed83058fa0e"])
     # # Check packers in DB
     # packed_db = check_packers_db("", "/home/kali/Documents/Samples/malware_nocompression")
