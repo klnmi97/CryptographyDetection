@@ -81,6 +81,7 @@ import logging
 import sys
 import yara_analyzer
 import cryfind_analyzer
+import packing_analyzer
 import time
 import lief
 import contextlib
@@ -118,11 +119,19 @@ def main():
     parser = argparse.ArgumentParser(description="Dataset analysis pipeline")
     parser.add_argument("path", help="File or directory to analyze")
     parser.add_argument('--tool', choices=['yara', 'cryfind', 'all'], default='all', help='Analysis tool to be used (default: all)')
+    parser.add_argument('-p', '--packing', choices=['analyze', 'unpack'], default='unpack', help='Run packers/encryption analyzer')
     parser.add_argument('--log', dest='logging', action='store_true', default=False, help='Enable logging')
     args = parser.parse_args()
 
 
     configure_logger(args.logging)
+
+    if args.packing == 'analyze':
+        packing_analyzer.analyze(args.path)
+    elif args.packing == 'unpack':
+        result = packing_analyzer.analyze(args.path)
+        unpacked_path = packing_analyzer.unpack(args.path, result)
+
 
 
     if args.tool == 'yara':
