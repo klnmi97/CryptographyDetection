@@ -114,9 +114,13 @@ def merge_dicts(dict1, dict2):
         else:
             dict1[key] = value
 
-def print_results(data):
+def print_results(data, tool_name):
+    print('--------------------------------------------')
+    print(f"Results after analysis with {tool_name}:")
+    print('--------------------------------------------')
     for rule in data:
         print(f"{rule}: {data[rule]}") 
+    print('--------------------------------------------')
 
 def main():
 
@@ -146,14 +150,14 @@ def main():
             yara_result = yara_analyzer.run(args.path, unpacked_samples)
             unpacked_result = yara_analyzer.run(unpacked_path) 
         merge_dicts(yara_result, unpacked_result)
-        print_results(yara_result)
+        print_results(yara_result, "yara")
 
     elif args.tool == 'cryfind':
         with timer():
             cryfind_result = cryfind_analyzer.run(args.path, unpacked_samples)
             unpacked_result = cryfind_analyzer.run(unpacked_path)
         merge_dicts(cryfind_result, unpacked_result)
-        print_results(cryfind_result)
+        print_results(cryfind_result, "cryfind")
 
     elif args.tool == 'all':
         # Run yara
@@ -169,8 +173,8 @@ def main():
             unpacked_result = cryfind_analyzer.run(unpacked_path)
         merge_dicts(cryfind_result, unpacked_result)
         
-        print_results(yara_result)
-        print_results(cryfind_result)
+        print_results(yara_result, "yara")
+        print_results(cryfind_result, "cryfind")
     else:
         print("Unknown option {}".format(args.tool))
 
