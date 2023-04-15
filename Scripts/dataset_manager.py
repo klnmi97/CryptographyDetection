@@ -117,7 +117,7 @@ if __name__ == '__main__':
     parser.add_argument('path', type=str, help='path where to download the malware samples from S3')
     parser.add_argument('-n', '--num_samples', type=int, help='Number of samples to download randomly')
     parser.add_argument('-c', '--category', type=str, help='Category of malware to download. See categories at https://ai.sophos.com/2020/12/14/sophos-reversinglabs-sorel-20-million-sample-malware-dataset/')
-    parser.add_argument('-d', '--decompress', typr=str, help='Path where to store decompressed samples')
+    parser.add_argument('-d', '--decompress', type=str, help='Path where to store decompressed samples')
     parser.add_argument('-r', '--restore', action='store_true', help='restore header bytes')
     args = parser.parse_args()
 
