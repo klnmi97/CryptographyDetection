@@ -7,6 +7,8 @@ from botocore.config import Config
 from botocore import UNSIGNED
 import sqlite3
 import sys
+import zlib
+import pefile
 
 
 def get_samples_from_file(path):
@@ -63,17 +65,60 @@ def download_samples(download_path, list):
         print("Files requested:", filecount)
     
 
+def decompress(path, output_path):
+    for filename in os.listdir(path):
+            f = os.path.join(path, filename)
+            of = os.path.join(output_path, filename)
+            # checking if it is a file
+            if os.path.isfile(f):
+                try:
+                    fstream = open(f, 'rb')
+                    decompressed = zlib.decompress(fstream.read())
+                    out = open(of, 'wb')
+                    out.write(decompressed)
+                except:
+                    print(filename + " decompression failed")
+
+def restore_header(filename):
+    # Load the PE file
+    pe = pefile.PE(filename)
+
+    # Set IMAGE_FILE_HEADER.Machine to i386 (0x014c)
+    pe.FILE_HEADER.Machine = 0x014c
+
+    # Set IMAGE_OPTIONAL_HEADER.Subsystem to WINDOWS_CUI (0x03)
+    pe.OPTIONAL_HEADER.Subsystem = 0x03
+
+    # Write the changes back to the file
+    pe.write(filename)
+
+def restore_headers(path):
+    if os.path.isdir(path):
+            # Handle the folder here.
+            print(f"Restoring header bytes for {path}")
+            for file_name in os.listdir(path):
+                file_path = os.path.join(path, file_name)
+                if os.path.isfile(file_path):
+                    # Handle the file here.
+                    restore_header(file_path)
+                else:
+                    pass
+    else:
+        print(f"Error: {path} is not a directory.")
+
 if __name__ == '__main__':
 
     category = 'is_malware'
     samples = 'all'
     metadb_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'meta.db')
+    decompressed_path=''
 
     parser = argparse.ArgumentParser(description='Download and modify malware samples.')
     parser.add_argument('path', type=str, help='path where to download the malware samples from S3')
     parser.add_argument('-n', '--num_samples', type=int, help='Number of samples to download randomly')
     parser.add_argument('-c', '--category', type=str, help='Category of malware to download. See categories at https://ai.sophos.com/2020/12/14/sophos-reversinglabs-sorel-20-million-sample-malware-dataset/')
-    parser.add_argument('-H', '--header', action='store_true', help='restore header bytes')
+    parser.add_argument('-d', '--decompress', typr=str, help='Path where to store decompressed samples')
+    parser.add_argument('-r', '--restore', action='store_true', help='restore header bytes')
     args = parser.parse_args()
 
     if not os.path.isfile(metadb_path):
@@ -91,7 +136,15 @@ if __name__ == '__main__':
     if args.num_samples:
         samples = args.num_samples
 
+    if args.decompress:
+        decompressed_path = args.decompress
+
     samples_list = create_sample_set(metadb_path, args.num_samples, category)
     
 
     download_samples(args.path, samples_list)
+
+    if args.decompress:
+        decompress(args.path, decompressed_path)
+        if args.restore:
+            restore_headers(decompressed_path)
