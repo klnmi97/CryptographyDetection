@@ -7,10 +7,9 @@ import logging
 import json
 
 
-def analyze_file(file, stats=None, log = False):
+def analyze_file(file, alg_stats=None, log = False):
     constants, apis = cryptoConstants, cryptoAPIs
     results = []
-    primitives = set()
     rules_map = {}
     
     logging.info(f"File: {file}")
@@ -18,16 +17,21 @@ def analyze_file(file, stats=None, log = False):
     with open(file, 'rb') as f:
             binary = f.read()
 
+    file_name = os.path.basename(file)
     # load mapping from file
     script_path = os.path.dirname(os.path.realpath(__file__))
     map_path = os.path.join(script_path, 'mapping.json')
     with open(map_path, 'r') as f:
-        rules_map = json.load(f)
+        data = json.load(f)
+        rules_map = data[0]
+        functions_map = data[1]
 
     # Searching for constants
     results = find_const(binary, constants) # TODO: add timeout? See 1ac6cc5e508c156e28ead649bba143d28c1263ace5c136cb4fe9a7bbbc28943c
     for result in results:
-        primitives.add(rules_map.get(result.name, result.name))
+        #primitives.add(rules_map.get(result.name, "Other"))
+        if result.name in rules_map:
+            alg_stats.setdefault(file_name, set()).add(rules_map.get(result.name))
         #stats[result.name] = stats.get(result.name, 0) + 1
 
 
@@ -36,10 +40,13 @@ def analyze_file(file, stats=None, log = False):
     for result in results:
         logging.info("[+] DLL API - %s", result["name"])
         #stats[result["name"]] = stats.get(result["name"], 0) + 1
-        primitives.add(rules_map.get(result["name"], result["name"]))
+        #primitives.add(rules_map.get(result["name"], result["name"]))
         #if not summary:
-        #for function in result['functions']:
-        #    print(f'    | {function["name"]}: {", ".join([hex(address) for address in function["addresses"]])}')
+        for function in result['functions']:
+            #primitives.add(functions_map.get(function["name"], "Other functions"))
+            if function["name"] in functions_map:
+                alg_stats.setdefault(file_name, set()).add(functions_map.get(function["name"]))
+            #print(f'    | {function["name"]}: {", ".join([hex(address) for address in function["addresses"]])}')
 
     # Searching for API in PE Import Tables
     try:
@@ -47,14 +54,14 @@ def analyze_file(file, stats=None, log = False):
         for result in results:
             #print(f'[+] {result["dll"]}: {result["function"]}')
             #stats[result["dll"]] = stats.get(result["dll"], 0) + 1
-            primitives.add(rules_map.get(result["dll"], result["dll"]))
+            #primitives.add(rules_map.get(result["dll"], result["dll"]))
+            #primitives.add(functions_map.get(result["function"], "Other functions"))
+            if result["function"] in functions_map:
+                alg_stats.setdefault(file_name, set()).add(functions_map.get(result["function"]))
         if not results:
             logging.info('[-] PE Import Tables - Nothing Found')
     except (ImportError, ValueError) as e:
         logging.error('[-] %s', e)
-    # Add algorithms from the set to statistics
-    for item in primitives:
-         stats[item] = stats.get(item, 0) + 1
 
 
 def handle_directory(path, exclude, stats=None):

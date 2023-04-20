@@ -126,7 +126,7 @@ def parse_entropy_data(data: dict):
     :return total number of files marked as packed
     """
     parsed_data = {}
-    total = 0
+    result = set()
 
     for hash, block in data.items():
         if not block:
@@ -136,9 +136,9 @@ def parse_entropy_data(data: dict):
     for key, value in parsed_data.items():
         status = value["status"]
         if status == 'packed':
-            total += 1
+            result.add(key)
     
-    return total
+    return result
 
     
 def filter_packer(packed_samples: dict(), filter: str, full_path = "") -> list():
@@ -242,7 +242,7 @@ def unpack_upx(path, samples: list()) -> str:
 #     return(packed_files)
 
 
-def analyze(path: str, exclude = list()):
+def analyze_packers(path: str, exclude = list()):
     """ Run Detect It Easy on the folder of samples
     to detect packers. Parses raw results and returns
     a dictionary of samples and the used packers.
@@ -257,24 +257,36 @@ def analyze(path: str, exclude = list()):
     """
     packed_samples = []
     # Cache to save time. TODO: remove for final solution
-    packed_samples = load_from_cache("packed_samples_ransomware") # add _ransomware for ransomware cache
-    result = load_from_cache("packers_ransomware")
+    packed_samples = None# load_from_cache("packed_samples_ransomware") # add _ransomware for ransomware cache
+    result = None#load_from_cache("packers_ransomware")
 
     if not result:
         result = detect_packers(path)
-        cache_list_to_disk("packers_ransomware", result)
+        #cache_list_to_disk("packers_ransomware", result)
     
     packed_samples = parse_diec_output(result)
-    cache_list_to_disk("packed_samples_ransomware", packed_samples)
+    #cache_list_to_disk("packed_samples_ransomware", packed_samples)
     
     # statistics on high-entropy samples
-    entropy_data = detect_high_entropy(path)
-    total_enc = parse_entropy_data(entropy_data)
-    print('--------------------------------------------')
-    print("Total samples with high entropy:", total_enc)
-    print('--------------------------------------------')
+    # entropy_data = detect_high_entropy(path)
+    # total_enc = parse_entropy_data(entropy_data)
+    # print('--------------------------------------------')
+    # print("Total samples with high entropy:", total_enc)
+    # print('--------------------------------------------')
 
     return packed_samples
+
+def analyze_entropy(path: str):
+    """ Analyzes packing/encryption based on the
+    file entropy.
+    
+    Arguments:
+        path: path to the directory with samples.
+
+    Return:
+        list of files detected as "packed" by Detect It Easy """
+    entropy_data = detect_high_entropy(path)
+    return parse_entropy_data(entropy_data)
 
 def unpack(path, sample_list: dict):
     """ Unpack samples. Currently supports

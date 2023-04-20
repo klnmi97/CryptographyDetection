@@ -108,11 +108,30 @@ def configure_logger(enabled):
         lief.logging.disable()
 
 def merge_dicts(dict1, dict2):
+    """ Merges two dictionaries which are in format:
+    sha256: set of items
+    Changes updates the first dictionary with values from
+    the second. 
+    """
     for key, value in dict2.items():
         if key in dict1:
-            dict1[key] += value
+            dict1[key].update(value)
         else:
             dict1[key] = value
+
+# TODO: support more dicts
+def process_results(dict1, dict2):
+    """ Combines results of two tools. """
+    new_dict = {}
+
+    for key in set(dict1.keys()).union(set(dict2.keys())):
+        # Calculate value as union of sets in old dictionaries
+        value = dict1.get(key, set()).union(dict2.get(key, set()))
+        # Add key-value pairs to new dictionary
+        for item in value:
+            new_dict[item] = new_dict.get(item, 0) + 1
+
+    return new_dict
 
 def print_results(data, tool_name):
     print('--------------------------------------------')
@@ -133,25 +152,30 @@ def main():
     parser.add_argument("path", help="File or directory to analyze")
     parser.add_argument('--tool', choices=['yara', 'cryfind', 'all'], default='all', help='Analysis tool to be used (default: all)')
     parser.add_argument('-p', '--packing', choices=['analyze', 'unpack'], default='unpack', help='Run packers/encryption analyzer')
+    parser.add_argument('-e', help='Exclude files, where packing or encryption were detected, from analysis.', default=False)
     parser.add_argument('--log', dest='logging', action='store_true', default=False, help='Enable logging')
     args = parser.parse_args()
 
 
     configure_logger(args.logging)
 
+    # Analyze or/and unpack
     if args.packing == 'analyze':
-        packing_analyzer.analyze(args.path)
+        packing_analyzer.analyze_packers(args.path)
     elif args.packing == 'unpack':
-        result = packing_analyzer.analyze(args.path)
+        entropy_result = packing_analyzer.analyze_entropy(args.path)
+        result = packing_analyzer.analyze_packers(args.path)
         unpacked_path, unpacked_samples = packing_analyzer.unpack(args.path, result)
+        obfuscated = entropy_result.union(set(result.keys()))
 
+    # Analyze with yara only
     if args.tool == 'yara':
         with timer():
             yara_result = yara_analyzer.run(args.path, unpacked_samples)
             unpacked_result = yara_analyzer.run(unpacked_path) 
         merge_dicts(yara_result, unpacked_result)
         print_results(yara_result, "yara")
-
+    # Analyze with cryfind only
     elif args.tool == 'cryfind':
         with timer():
             cryfind_result = cryfind_analyzer.run(args.path, unpacked_samples)
@@ -173,10 +197,18 @@ def main():
             unpacked_result = cryfind_analyzer.run(unpacked_path)
         merge_dicts(cryfind_result, unpacked_result)
         
-        print_results(yara_result, "yara")
-        print_results(cryfind_result, "cryfind")
+
+        
+
+        #print_results(yara_result, "yara")
+        #print_results(cryfind_result, "cryfind")
+        
     else:
         print("Unknown option {}".format(args.tool))
 
+    combined_results = process_results(yara_result, cryfind_result)
+    print_results(combined_results, "All")
+
+    
 if __name__ == "__main__":
     main()
