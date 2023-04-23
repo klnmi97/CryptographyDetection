@@ -9,15 +9,19 @@ import sqlite3
 import sys
 import zlib
 import pefile
+import threading
+import numpy as np
 
 
-def write_chunks_to_files(lst, n):
+def write_chunks_to_files(lst, n, path):
     # Divide list into chunks of size n
     chunks = [lst[i:i+n] for i in range(0, len(lst), n)]
     
     # Write each chunk to a separate file
     for i, chunk in enumerate(chunks):
-        with open(f"samples_{i}.list", "w") as f:
+        filename = "samples_{}.list".format(i)
+        filepath = os.path.join(path, filename)
+        with open(filepath, "w") as f:
             #f.write('\n'.join(chunk))
             for item in chunk:
                 f.write("%s\n" % item)
@@ -61,9 +65,8 @@ def create_sample_set(dp_path, n='all', category='is_malware'):
     
     return resulting_set
 
-def download_samples(download_path, list):
+def download_sample(download_path, list, s3, thread=0):
     filecount = 0
-    s3 = boto3.client('s3', config=Config(signature_version=UNSIGNED))
 
     for file in list:
         output_path = os.path.join(download_path, file)
@@ -75,7 +78,26 @@ def download_samples(download_path, list):
             else:
                 raise
         filecount += 1
-        print("Files requested:", filecount)
+        print(f"[Thread {thread}] Files requested: {filecount}")
+
+def download_samples(download_path, lst):
+    threads = []
+    n = 10
+    s3 = boto3.client('s3', config=Config(signature_version=UNSIGNED))
+
+
+    if len(lst) > 10:
+        lists = list(np.array_split(lst, n))
+        for i in range(n):
+            t = threading.Thread(target=download_sample, args=(download_path, lists[i], s3, i))
+            t.start()
+            threads.append(t)
+        
+        for t in threads:
+            t.join()
+    else:
+        download_sample(download_path, lst, s3)
+
     
 
 def decompress(path, output_path):
@@ -152,7 +174,6 @@ if __name__ == '__main__':
     if args.num_samples:
         samples = args.num_samples
 
-    
     if args.gen_list:
         samples, batches = args.gen_list
 
@@ -163,11 +184,7 @@ if __name__ == '__main__':
     
     # If option -g is active, create we write the generated list and exit
     if args.gen_list:
-        # save_path = os.path.join(args.path, "samples.list")
-        # with open(save_path, 'w') as f:
-        #     for item in samples_list:
-        #         f.write("%s\n" % item)
-        write_chunks_to_files(samples_list, batches)
+        write_chunks_to_files(samples_list, batches, args.path)
         sys.exit(0)
 
     download_samples(args.path, samples_list)
