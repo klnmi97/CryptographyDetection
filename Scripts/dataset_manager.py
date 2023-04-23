@@ -26,6 +26,15 @@ def write_chunks_to_files(lst, n, path):
             for item in chunk:
                 f.write("%s\n" % item)
 
+def read_file(path) -> list:
+    if os.path.isfile(path):
+        with open(path, 'r') as f:
+            lines = [line.strip() for line in f]
+        return lines
+    else:
+        print(f"Error: {path} file does not exist or is not a file!")
+        sys.exit(1)
+
 def get_samples_from_file(path):
     with open(path, 'r') as file:
         lines = file.readlines()
@@ -157,6 +166,7 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--category', type=str, help='Category of malware to download. See categories at https://ai.sophos.com/2020/12/14/sophos-reversinglabs-sorel-20-million-sample-malware-dataset/')
     parser.add_argument('-d', '--decompress', type=str, help='Path where to store decompressed samples')
     parser.add_argument('-r', '--restore', action='store_true', help='restore header bytes')
+    parser.add_argument('-f', type=str, dest='file', metavar='file', help='Download samples listed in the provided file')
     args = parser.parse_args()
 
     if not os.path.isfile(metadb_path):
@@ -180,7 +190,10 @@ if __name__ == '__main__':
     if args.decompress:
         decompressed_path = args.decompress
 
-    samples_list = create_sample_set(metadb_path, samples, category)
+    if args.file:
+        samples_list = read_file(args.file)
+    else:
+        samples_list = create_sample_set(metadb_path, samples, category)
     
     # If option -g is active, create we write the generated list and exit
     if args.gen_list:
