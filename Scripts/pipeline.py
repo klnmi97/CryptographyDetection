@@ -95,6 +95,11 @@ def timer():
     end = time.time()
     print('Analysis took {} seconds'.format(end - start))
 
+def save_results(path: str, data: dict):
+    with open(path, 'w') as f:
+        for rule in data:
+            f.write(f"{rule}: {data[rule]}\n")
+
 def configure_logger(enabled):
     root = logging.getLogger()
     root.setLevel(logging.INFO)
@@ -145,19 +150,26 @@ def main():
 
     yara_result = {}
     cryfind_result = {}
+    unpacked_result = {}
     unpacked_path = ''
     unpacked_samples = []
+    exclude_list = []
+    results_path = ''
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Dataset analysis pipeline")
     parser.add_argument("path", help="File or directory to analyze")
     parser.add_argument('--tool', choices=['yara', 'cryfind', 'all'], default='all', help='Analysis tool to be used (default: all)')
     parser.add_argument('-p', '--packing', choices=['analyze', 'unpack'], default='unpack', help='Run packers/encryption analyzer')
-    parser.add_argument('-e', help='Exclude files, where packing or encryption were detected, from analysis.', default=False)
+    parser.add_argument('-e', dest='exclude', action='store_true', help='Exclude files, where packing or encryption were detected, from analysis.', default=False)
     parser.add_argument('--log', dest='logging', action='store_true', default=False, help='Enable logging')
+    parser.add_argument('-s', dest='save', type=str, help='Save analysis results to file')
     args = parser.parse_args()
 
 
     configure_logger(args.logging)
+
+    if args.save:
+        results_path = args.save
 
     # Analyze or/and unpack
     if args.packing == 'analyze':
@@ -166,7 +178,7 @@ def main():
         entropy_result = packing_analyzer.analyze_entropy(args.path)
         result = packing_analyzer.analyze_packers(args.path)
         unpacked_path, unpacked_samples = packing_analyzer.unpack(args.path, result)
-        obfuscated = entropy_result.union(set(result.keys()))
+        obfuscated = entropy_result.union(set(result.keys())) # result.keys()
 
     # Analyze with yara only
     if args.tool == 'yara':
@@ -186,20 +198,27 @@ def main():
     elif args.tool == 'all':
         # Run yara
         with timer():
-            yara_result = yara_analyzer.run(args.path, unpacked_samples)
-            unpacked_result = yara_analyzer.run(unpacked_path) 
+            if not args.exclude:
+                unpacked_result = yara_analyzer.run(unpacked_path)
+                exclude_list = unpacked_samples
+            else:
+                exclude_list = list(obfuscated)
+            
+            yara_result = yara_analyzer.run(args.path, exclude=exclude_list)    
+             
         merge_dicts(yara_result, unpacked_result)
 
         # Run cryfind
         unpacked_result = {}
         with timer():
-            cryfind_result = cryfind_analyzer.run(args.path, unpacked_samples)
-            unpacked_result = cryfind_analyzer.run(unpacked_path)
+            if not args.exclude:
+                unpacked_result = cryfind_analyzer.run(unpacked_path)
+                exclude_list = unpacked_samples
+            else:
+                exclude_list = list(obfuscated)
+            cryfind_result = cryfind_analyzer.run(args.path, exclude=exclude_list)
         merge_dicts(cryfind_result, unpacked_result)
         
-
-        
-
         #print_results(yara_result, "yara")
         #print_results(cryfind_result, "cryfind")
         
@@ -209,6 +228,8 @@ def main():
     combined_results = process_results(yara_result, cryfind_result)
     print_results(combined_results, "All")
 
-    
+    if args.save:
+        save_results(results_path, combined_results)
+
 if __name__ == "__main__":
     main()
