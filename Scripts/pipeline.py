@@ -95,6 +95,14 @@ def timer():
     end = time.time()
     print('Analysis took {} seconds'.format(end - start))
 
+def list_files(directory_path):
+    files_set = set()
+    for file_name in os.listdir(directory_path):
+        file_path = os.path.join(directory_path, file_name)
+        if os.path.isfile(file_path):
+            files_set.add(file_name)
+    return files_set
+
 def count_files(path):
     file_count = 0
     for file in os.listdir(path):
@@ -131,6 +139,9 @@ def merge_dicts(dict1: dict, dict2: dict)-> dict:
 
 def filter_keys(dict1: dict, exclude: list)-> dict:
     return {key: dict1[key] for key in dict1 if key not in exclude}
+
+def collect_keys(dict1: dict, include: list)-> dict:
+    return {key: dict1[key] for key in dict1 if key in include}
 
 # TODO: support more dicts
 def process_results(dict1, dict2):
@@ -177,6 +188,8 @@ def main():
 
     configure_logger(args.logging)
 
+    
+
     if args.save:
         results_path = args.save
 
@@ -184,6 +197,8 @@ def main():
     entropy_result = packing_analyzer.analyze_entropy(args.path)
     packed_samples = packing_analyzer.analyze_packers(args.path)
     obfuscated = entropy_result.union(set(packed_samples.keys()))
+    non_obfuscated = [file for file in list_files(args.path) if file not in list(obfuscated)]
+    print("Total non-obfuscated:", len(non_obfuscated))
     if args.packing:
         unpacked_path, unpacked_samples = packing_analyzer.unpack(args.path, packed_samples)
 
@@ -218,6 +233,10 @@ def main():
         yara2 = filter_keys(yara_result, list(obfuscated))
         # Results for all but packed samples
         yara3 = filter_keys(yara_result, packed_samples.keys())
+        # Results for packed only + unpacked packed
+        yara4 = merge_dicts(filter_keys(collect_keys(yara_result, packed_samples), unpacked_samples), yara_unpacked_result)
+        # Results for non-obfuscated + unpacked
+        yara5 = merge_dicts(filter_keys(yara_result, list(obfuscated)), yara_unpacked_result)
 
         # Run cryfind
         unpacked_result = {}
@@ -235,6 +254,10 @@ def main():
         cryfind2 = filter_keys(cryfind_result, list(obfuscated))
         # Results for all but packed samples
         cryfind3 = filter_keys(cryfind_result, packed_samples.keys())
+        # Results for packed only + unpacked packed
+        cryfind4 = merge_dicts(filter_keys(collect_keys(cryfind_result, packed_samples), unpacked_samples), cryfind_unpacked_result)
+        # Results for non-obfuscated + unpacked
+        cryfind5 = merge_dicts(filter_keys(cryfind_result, list(obfuscated)), cryfind_unpacked_result)
         
         #print_results(yara_result, "yara")
         #print_results(cryfind_result, "cryfind")
@@ -245,7 +268,9 @@ def main():
     print("Total files:", count_files(args.path))
     print("Total obfuscated:", len(list(obfuscated)))
     print("Total packed:", len(packed_samples))
-
+    non_obfuscated = [file for file in list_files(args.path) if file not in list(obfuscated)]
+    print("Total non-obfuscated:", len(non_obfuscated))
+    
     # All with unpacking
     all_yara = process_results(yara1, {})
     print_results(all_yara, "All yara")
@@ -260,7 +285,6 @@ def main():
     unencrypted_y = process_results(yara2, {})
     print_results(unencrypted_y, "Yara, not obfuscated")
 
-
     unencrypted_c = process_results(cryfind2, {})
     print_results(unencrypted_c, "Cryfind, not obfuscated")
 
@@ -268,14 +292,33 @@ def main():
     print_results(unencrypted, "All, not obfuscated")
 
     # Without packers only
-    without_packing_y = process_results(yara3, {})
-    print_results(without_packing_y, "Yara, Without packing or detected protectors/SFXs")
+    # without_packing_y = process_results(yara3, {})
+    # print_results(without_packing_y, "Yara, Without packing or detected protectors/SFXs")
 
-    without_packing_c = process_results(cryfind3, {})
-    print_results(without_packing_c, "Cryfind, Without packing or detected protectors/SFXs")
+    # without_packing_c = process_results(cryfind3, {})
+    # print_results(without_packing_c, "Cryfind, Without packing or detected protectors/SFXs")
 
-    without_packing = process_results(yara3, cryfind3)
-    print_results(without_packing, "Without packing or detected protectors/SFXs")
+    # without_packing = process_results(yara3, cryfind3)
+    # print_results(without_packing, "Without packing or detected protectors/SFXs")
+
+    # Packed only + unpacked
+    # packed_results_y = process_results(yara4, {})
+    # print_results(packed_results_y, "Yara, packed only")
+
+    # packed_results_c = process_results(cryfind4, {})
+    # print_results(packed_results_c, "Cryfind, packed only")
+
+    # packed_results = process_results(yara4, cryfind4)
+    # print_results(packed_results, "All, packed only")
+
+    free_y = process_results(yara5, {})
+    print_results(free_y, "Yara, Without obfuscation + unpacked")
+
+    free_c = process_results(cryfind5, {})
+    print_results(free_c, "Cryfind, Without obfuscation + unpacked")
+
+    free = process_results(yara5, cryfind5)
+    print_results(free, "All, Without obfuscation + unpacked")
 
     if args.save:
         save_results(results_path, combined_results)
