@@ -8,15 +8,15 @@ import pickle
 # end debug
 
 # debug
-def load_from_cache(variable_name):
-    cache_file = f"{variable_name}.cache"
+def load_from_cache(file_name):
+    cache_file = f"{file_name}.cache"
     if os.path.isfile(cache_file):
         with open(cache_file, "rb") as f:
             return pickle.load(f)
     return None
 
-def cache_list_to_disk(variable_name, data):
-    with open(f"{variable_name}.cache", "wb") as f:
+def cache_data_to_disk(file_name, data):
+    with open(f"{file_name}.cache", "wb") as f:
         pickle.dump(data, f)
 
 # end debug
@@ -242,7 +242,7 @@ def unpack_upx(path, samples: list()) -> str:
 #     return(packed_files)
 
 
-def analyze_packers(path: str, exclude = list()):
+def analyze_packers(path: str, exclude = list(), use_caching = False):
     """ Run Detect It Easy on the folder of samples
     to detect packers. Parses raw results and returns
     a dictionary of samples and the used packers.
@@ -256,16 +256,20 @@ def analyze_packers(path: str, exclude = list()):
         Dictionary sample - packer
     """
     packed_samples = []
+    result = None
     # Cache to save time. TODO: remove for final solution
-    packed_samples = None# load_from_cache("packed_samples_ransomware") # add _ransomware for ransomware cache
-    result = None#load_from_cache("packers_ransomware")
+    analysis_dirname = os.path.basename(path) + "_packers"
+    if use_caching:
+        packed_samples = load_from_cache(analysis_dirname) # add _ransomware for ransomware cache
+        result = load_from_cache(analysis_dirname)
 
     if not result:
         result = detect_packers(path)
-        #cache_list_to_disk("packers_ransomware", result)
+        if use_caching:
+            cache_data_to_disk(analysis_dirname, result)
     
     packed_samples = parse_diec_output(result)
-    #cache_list_to_disk("packed_samples_ransomware", packed_samples)
+    # cache_data_to_disk("packed_samples_ransomware", packed_samples)
     
     # statistics on high-entropy samples
     # entropy_data = detect_high_entropy(path)
@@ -276,7 +280,7 @@ def analyze_packers(path: str, exclude = list()):
 
     return packed_samples
 
-def analyze_entropy(path: str):
+def analyze_entropy(path: str, use_caching = False):
     """ Analyzes packing/encryption based on the
     file entropy.
     
@@ -285,7 +289,17 @@ def analyze_entropy(path: str):
 
     Return:
         list of files detected as "packed" by Detect It Easy """
-    entropy_data = detect_high_entropy(path)
+    
+    analysis_dirname = os.path.basename(path) + "_entropy"
+    entropy_data = None
+    if use_caching:
+        entropy_data = load_from_cache(analysis_dirname)
+    if not entropy_data:
+        entropy_data = detect_high_entropy(path)
+        if use_caching:
+            cache_data_to_disk(analysis_dirname, entropy_data)
+
+
     return parse_entropy_data(entropy_data)
 
 def unpack(path, sample_list: dict):

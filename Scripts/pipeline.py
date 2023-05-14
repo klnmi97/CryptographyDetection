@@ -1,82 +1,3 @@
-from ast import arg
-import os
-import glob
-import argparse
-
-samples_folder = "/home/kali/Downloads/Windows"
-samples_folder = "/home/kali/Documents/Samples/malware_nocompression"
-strings_out_folder = "/home/kali/Downloads/strings_result/"
-yara_out_folder = "/home/kali/Documents/yara_result_unp_nc/"
-
-strings_cmd = "strings"
-
-def build_shell_command(command, arguments_list: list()):
-    separator = " "
-    args = separator.join(arguments_list)
-    return command + " " + args
-
-#command = build_shell_command(strings_cmd, ["/home/kali/Downloads/Windows/MSIL_Filecoder.CS.ex > /home/kali/Downloads/analysis.txt"])
-#os.system(command)
-
-def iterate_samples(folder, command, arguments_before, arguments_after, outputPath):
-    files = glob.glob(folder + "/*")
-    non_empty_yara_files = 0
-    # check the output directiry
-    if not os.path.exists(outputPath):
-            os.mkdir(outputPath)
-
-    for filepath in files:
-        args = []
-        args.extend(arguments_before)
-        args.append(filepath)
-        args.extend(arguments_after)
-        args.append(">")
-        basename = os.path.basename(filepath)
-        final_filename = basename.replace(".ex", ".txt")
-        args.append(os.path.join(outputPath, final_filename))
-        cmd = build_shell_command(command, args)
-        print("Executing: $", cmd)
-        os.system(cmd)
-
-        #check if file is empty
-        if os.stat(os.path.join(outputPath, final_filename)).st_size == 0:
-            os.remove(os.path.join(outputPath, final_filename))
-        else:
-            non_empty_yara_files += 1
-            
-        
-    print("Non empty files:", non_empty_yara_files)
-        
-
-def checkPackers(dir, outfile):
-    files = glob.glob(dir + "/*")
-    
-    for filepath in files:
-        basename = os.path.basename(filepath)
-        f = open(outfile, "a")
-        f.write(basename + '\n')
-        f.close()
-
-        args = []
-        args.append("-j")
-        args.append(filepath)
-        args.append(">>")
-        args.append(outfile)
-        cmd = build_shell_command("diec", args)
-        os.system(cmd)
-
-
-#iterate_samples(samples_folder, strings_cmd, [], [""], strings_out_folder)
-
-yara_cmd = "yara"
-yara_rules_path = "/home/kali/Downloads/crypto_signatures.yara"
-yara_args = ["-s", "-r", yara_rules_path]
-
-#iterate_samples(samples_folder, yara_cmd, yara_args, [], yara_out_folder)
-
-out = "/home/kali/Documents/Workspace/subsetNormal-packers-info.json"
-#checkPackers(samples_folder, out)
-
 import logging
 import sys
 import yara_analyzer
@@ -85,6 +6,8 @@ import packing_analyzer
 import time
 import lief
 import contextlib
+import os
+import argparse
 
 root = logging.getLogger()
 
@@ -114,6 +37,15 @@ def save_results(path: str, data: dict):
     with open(path, 'w') as f:
         for rule in data:
             f.write(f"{rule}: {data[rule]}\n")
+
+def read_file(path) -> list:
+    if os.path.isfile(path):
+        with open(path, 'r') as f:
+            lines = [line.strip() for line in f]
+        return lines
+    else:
+        print(f"Error: {path} file does not exist or is not a file!")
+        sys.exit(1)
 
 def configure_logger(enabled):
     root = logging.getLogger()
@@ -179,28 +111,29 @@ def main():
     parser = argparse.ArgumentParser(description="Dataset analysis pipeline")
     parser.add_argument("path", help="File or directory to analyze")
     parser.add_argument('--tool', choices=['yara', 'cryfind', 'all'], default='all', help='Analysis tool to be used (default: all)')
-    parser.add_argument('-p', '--packing', help='Run unpacking', default=True)
-    parser.add_argument('-e', dest='exclude', action='store_true', help='Exclude files, where packing or encryption were detected, from analysis.', default=False)
+    parser.add_argument('-f', dest='filter', type=str, help='Filter out samples provided in the file')
     parser.add_argument('--log', dest='logging', action='store_true', default=False, help='Enable logging')
-    parser.add_argument('-s', dest='save', type=str, help='Save analysis results to file')
+    parser.add_argument('-s', dest='save', type=str, help='Export analysis results')
+    parser.add_argument('-c', '--cache', dest='cache', action='store_true', default=False, help='Cache raw analysis data/Load cached data')
+
     args = parser.parse_args()
 
 
     configure_logger(args.logging)
 
-    
+    if args.filter:
+        exclude_list = read_file(args.filter)
 
     if args.save:
         results_path = args.save
 
     # Analyze or/and unpack
-    entropy_result = packing_analyzer.analyze_entropy(args.path)
-    packed_samples = packing_analyzer.analyze_packers(args.path)
+    entropy_result = packing_analyzer.analyze_entropy(args.path, args.cache)
+    packed_samples = packing_analyzer.analyze_packers(args.path, use_caching=args.cache)
     obfuscated = entropy_result.union(set(packed_samples.keys()))
     non_obfuscated = [file for file in list_files(args.path) if file not in list(obfuscated)]
     print("Total non-obfuscated:", len(non_obfuscated))
-    if args.packing:
-        unpacked_path, unpacked_samples = packing_analyzer.unpack(args.path, packed_samples)
+    unpacked_path, unpacked_samples = packing_analyzer.unpack(args.path, packed_samples)
 
     # Analyze with yara only
     if args.tool == 'yara':
@@ -218,17 +151,30 @@ def main():
         print_results(cryfind_result, "cryfind")
 
     elif args.tool == 'all':
-        # Run yara
-        with timer():
-            #if not args.exclude:
-            yara_unpacked_result = yara_analyzer.run(unpacked_path)
-            #    exclude_list = unpacked_samples
-            #else:
-            #    exclude_list = list(obfuscated)
+
+        analysis_dirname = os.path.basename(args.path)
+        tool_name = "yara"
+        cache_file_yara = analysis_dirname + "_" + tool_name
+        if args.cache:
+            yara_unpacked_result = packing_analyzer.load_from_cache(cache_file_yara + "_u")
+            yara_result = packing_analyzer.load_from_cache(cache_file_yara)
+        if not yara_unpacked_result or not yara_result:
+            # Run yara
+            with timer():
+                yara_unpacked_result = yara_analyzer.run(unpacked_path)
+                yara_result = yara_analyzer.run(args.path)
             
-            yara_result = yara_analyzer.run(args.path)    
+            if args.cache:
+                packing_analyzer.cache_data_to_disk(cache_file_yara + "_u", yara_unpacked_result)
+                packing_analyzer.cache_data_to_disk(cache_file_yara, yara_result)
+
         # Results for all samples: all + unpacked    
         yara1 = merge_dicts(filter_keys(yara_result, unpacked_samples), yara_unpacked_result)
+
+        # All minus filtered
+        if args.filter:
+            yara1_f = filter_keys(yara1, exclude_list)
+
         # Results for non-obfuscated samples
         yara2 = filter_keys(yara_result, list(obfuscated))
         # Results for all but packed samples
@@ -238,18 +184,33 @@ def main():
         # Results for non-obfuscated + unpacked
         yara5 = merge_dicts(filter_keys(yara_result, list(obfuscated)), yara_unpacked_result)
 
+        # Results for non-obfuscated + unpacked minus exclude list
+        yara5_f = {}
+        if args.filter:
+            yara5_f = filter_keys(yara5, exclude_list)
+
         # Run cryfind
-        unpacked_result = {}
-        with timer():
-            #if not args.exclude:
-            cryfind_unpacked_result = cryfind_analyzer.run(unpacked_path)
-            #    exclude_list = unpacked_samples
-            #else:
-            #    exclude_list = list(obfuscated)
-            cryfind_result = cryfind_analyzer.run(args.path)
+        tool_name = "cryfind"
+        cache_file_cryfind = analysis_dirname + "_" + tool_name
+        cryfind_unpacked_result = packing_analyzer.load_from_cache(cache_file_cryfind + "_u")
+        cryfind_result = packing_analyzer.load_from_cache(cache_file_cryfind)
+        if not cryfind_unpacked_result or not cryfind_result:
+
+            unpacked_result = {}
+            with timer():
+                cryfind_unpacked_result = cryfind_analyzer.run(unpacked_path)
+                cryfind_result = cryfind_analyzer.run(args.path)
+
+            if args.cache:
+                packing_analyzer.cache_data_to_disk(cache_file_cryfind + "_u", cryfind_unpacked_result)
+                packing_analyzer.cache_data_to_disk(cache_file_cryfind, cryfind_result)
         
         # Results for all samples: all + unpacked
         cryfind1 = merge_dicts(filter_keys(cryfind_result, unpacked_samples), cryfind_unpacked_result)
+        # All minus filtered
+        if args.filter:
+            cryfind1_f = filter_keys(cryfind1, exclude_list)
+
         # Results for non-obfuscated samples
         cryfind2 = filter_keys(cryfind_result, list(obfuscated))
         # Results for all but packed samples
@@ -259,8 +220,10 @@ def main():
         # Results for non-obfuscated + unpacked
         cryfind5 = merge_dicts(filter_keys(cryfind_result, list(obfuscated)), cryfind_unpacked_result)
         
-        #print_results(yara_result, "yara")
-        #print_results(cryfind_result, "cryfind")
+        # Results for non-obfuscated + unpacked minus exclude list
+        cryfind5_f = {}
+        if args.filter:
+            cryfind5_f = filter_keys(cryfind5, exclude_list)
         
     else:
         print("Unknown option {}".format(args.tool))
@@ -281,15 +244,27 @@ def main():
     combined_results = process_results(yara1, cryfind1)
     print_results(combined_results, "All")
 
+    # All (filtered)
+    if args.filter:
+        all_yara_f = process_results(yara1_f, {})
+        print_results(all_yara_f, "All, yara, filtered")
+
+        all_cryfind_f = process_results(cryfind1_f, {})
+        print_results(all_cryfind_f, "All cryfind, filtered")
+
+        combined_results_f = process_results(yara1_f, cryfind1_f)
+        print_results(combined_results_f, "All, filtered")
+
+
     # Without obfuscation
-    unencrypted_y = process_results(yara2, {})
-    print_results(unencrypted_y, "Yara, not obfuscated")
+    # unencrypted_y = process_results(yara2, {})
+    # print_results(unencrypted_y, "Yara, not obfuscated")
 
-    unencrypted_c = process_results(cryfind2, {})
-    print_results(unencrypted_c, "Cryfind, not obfuscated")
+    # unencrypted_c = process_results(cryfind2, {})
+    # print_results(unencrypted_c, "Cryfind, not obfuscated")
 
-    unencrypted = process_results(yara2, cryfind2)
-    print_results(unencrypted, "All, not obfuscated")
+    # unencrypted = process_results(yara2, cryfind2)
+    # print_results(unencrypted, "All, not obfuscated")
 
     # Without packers only
     # without_packing_y = process_results(yara3, {})
@@ -319,6 +294,16 @@ def main():
 
     free = process_results(yara5, cryfind5)
     print_results(free, "All, Without obfuscation + unpacked")
+
+    if args.filter:
+        free_yara_f = process_results(yara5_f, {})
+        print_results(free_yara_f, "Yara, Without obfuscation + unpacked")
+
+        free_cryfind_f = process_results(cryfind5_f, {})
+        print_results(free_cryfind_f, "Cryfind, Without obfuscation + unpacked")
+
+        free_f = process_results(yara5_f, cryfind5_f)
+        print_results(free_f, "All, Without obfuscation + unpacked")
 
     if args.save:
         save_results(results_path, combined_results)
