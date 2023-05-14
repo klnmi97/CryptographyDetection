@@ -26,6 +26,12 @@ def build_shell_command(command, arguments_list: list()):
     args = separator.join(arguments_list)
     return command + " " + args
 
+def add_to_dict(dictionary, key, value):
+    if key in dictionary:
+        dictionary[key].append(value)
+    else:
+        dictionary[key] = [value]
+
 def detect_packers(path):
     """ Tries to detect packers using Detect It Easy
     commandline tool. 
@@ -77,8 +83,7 @@ def parse_diec_output(data: dict()):
     analysis using no additional options. """
     parsed_data = {}
     packers = {}
-    packer_names = {}
-    packed_samples = []
+    packed_samples = {}
 
     for hash, block in data.items():
         if not block:
@@ -91,31 +96,34 @@ def parse_diec_output(data: dict()):
                 for packer_info in detect['values']:
                     # TODO: what if there are several packers/SFX?
                     if packer_info['type'] == 'Packer':
-                       packer_names[key] = packer_info['name']
-                       packed_samples.append(key)
+                       #packed_samples[key] = packer_info['name']
+                        add_to_dict(packed_samples, key, packer_info['name'])
                     if packer_info['type'] == 'SFX':
-                        packer_names[key] = 'SFX'
-                    elif packer_info['type'] == 'Installer':
-                        packer_names[key] = packer_info['name']
-                    elif packer_info['type'] == 'Protector':
-                        packer_names[key] = packer_info['name']
+                        #packed_samples[key] = 'SFX'
+                        add_to_dict(packed_samples, key, 'SFX')
+                    if packer_info['type'] == 'Installer':
+                        #packed_samples[key] = packer_info['name']
+                        add_to_dict(packed_samples, key, packer_info['name'])
+                    if packer_info['type'] == 'Protector':
+                        #packed_samples[key] = packer_info['name']
+                        add_to_dict(packed_samples, key, packer_info['name'])
 
     #print(packer_names)
     #print(f"Total packed files: {len(packer_names)}")
     #print(f"SFXed files: {sfx}")
 
-    for hash, packer in packer_names.items():
-
-        if packer in packers.keys():
-            packers[packer] += 1
-        else:
-            packers[packer] = 1
+    for hash, packer_list in packed_samples.items():
+        for packer in packer_list:
+            if packer in packers.keys():
+                packers[packer] += 1
+            else:
+                packers[packer] = 1
 
     sorted_packers = sorted(packers.items(), key=lambda x: x[1], reverse=True)
     for packer, quantity in sorted_packers:
         print(f"{packer}: {quantity}")
 
-    return packer_names
+    return packed_samples
     
 def parse_entropy_data(data: dict):
     """ Parses output of the Detect It Easy produced
@@ -142,7 +150,7 @@ def parse_entropy_data(data: dict):
 
     
 def filter_packer(packed_samples: dict(), filter: str, full_path = "") -> list():
-    return [os.path.join(full_path, key) for key, value in packed_samples.items() if value == filter]
+    return [os.path.join(full_path, key) for key, value_list in packed_samples.items() if filter in value_list]
 
 # def unpack_unipack(path, samples: list(), debug = False):
 
@@ -186,6 +194,7 @@ def unpack_upx(path, samples: list()) -> str:
     """
 
     successful_calls = 0
+    unpacked = []
     # Create directory for unpacked samples
     output_dir = os.path.join(path, "unpacked/")
     if not os.path.exists(output_dir):
@@ -205,6 +214,7 @@ def unpack_upx(path, samples: list()) -> str:
         result = subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
         if result.returncode == 0:
             successful_calls += 1
+            unpacked.append(sample)
     print(f"Successfully unpacked {successful_calls} samples out of {len(samples)}")
     return output_dir
 
@@ -317,6 +327,6 @@ def unpack(path, sample_list: dict):
 
     upx = filter_packer(sample_list, "UPX")
     unpacked_path = unpack_upx(path, upx)
-
+    unpacked_samples = os.listdir(unpacked_path)
     # Return new path and list of unpacked samples
-    return unpacked_path, upx
+    return unpacked_path, unpacked_samples
