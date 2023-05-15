@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+""" Script to handle SoReL-20M dataset and its parst. 
+
+    Usage: dataset_manager.py -h 
+"""
+
 import argparse
 import os
 import random
@@ -14,6 +20,9 @@ import numpy as np
 
 
 def write_chunks_to_files(lst, n, path):
+    """ Divide the provided list into n chunks and write
+    them into n files to the provided path. """
+
     # Divide list into chunks of size n
     chunks = [lst[i:i+n] for i in range(0, len(lst), n)]
     
@@ -27,6 +36,7 @@ def write_chunks_to_files(lst, n, path):
                 f.write("%s\n" % item)
 
 def read_file(path) -> list:
+    """ Read the provided file into a list. """
     if os.path.isfile(path):
         with open(path, 'r') as f:
             lines = [line.strip() for line in f]
@@ -35,13 +45,16 @@ def read_file(path) -> list:
         print(f"Error: {path} file does not exist or is not a file!")
         sys.exit(1)
 
-def get_samples_from_file(path):
-    with open(path, 'r') as file:
-        lines = file.readlines()
-    return [line.strip() for line in lines]
-
 def create_sample_set(dp_path, n='all', category='is_malware'):
-
+    """ Create a set of files based on the provided arguments.
+    Arguments:
+        dp_path: path of the meta.db file from the SoReL-20M repo.
+        n: size of the resulting set. Default is ALL.
+        category: malware category. Should be on of the categories 
+        from the meta.db file. The default is is_malware which means
+        any malware sample can be chosen. 
+    Return:
+        set of sample names. """
     sample_ids = []
     sample_sha256 = []
     samples_len = 0
@@ -75,6 +88,13 @@ def create_sample_set(dp_path, n='all', category='is_malware'):
     return resulting_set
 
 def download_sample(download_path, list, s3, thread=0):
+    """ Download samples listed in the provided list.
+    
+    Arguments:
+        download_path: path where to save zipped samples.
+        list: list with sample names to download.
+        s3: s3 client instance.
+        thread: thread number for output info."""
     filecount = 0
 
     for file in list:
@@ -90,10 +110,14 @@ def download_sample(download_path, list, s3, thread=0):
         print(f"[Thread {thread}] Files requested: {filecount}")
 
 def download_samples(download_path, lst):
+    """ Download samples in parallel.
+        
+        Arguments:
+            download_path: path to download zipped samples.
+            lst: list of samples to download. """
     threads = []
     n = 10
     s3 = boto3.client('s3', config=Config(signature_version=UNSIGNED))
-
 
     if len(lst) > 10:
         lists = list(np.array_split(lst, n))
@@ -107,9 +131,12 @@ def download_samples(download_path, lst):
     else:
         download_sample(download_path, lst, s3)
 
-    
-
 def decompress(path, output_path):
+    """ Decompress downloaded samples with zlib.
+        Arguments:
+            path: directory with compressed samples.
+            output_path: directory where to save
+            decompressed samples. """
     for filename in os.listdir(path):
             f = os.path.join(path, filename)
             of = os.path.join(output_path, filename)
@@ -124,6 +151,7 @@ def decompress(path, output_path):
                     print(filename + " decompression failed")
 
 def restore_header(filename):
+    """ Restore file header bytes. """
     # Load the PE file
     pe = pefile.PE(filename)
 
@@ -137,6 +165,8 @@ def restore_header(filename):
     pe.write(filename)
 
 def restore_headers(path):
+    """ Restore headers of the files located
+        in the provided directory. """
     if os.path.isdir(path):
             # Handle the folder here.
             print(f"Restoring header bytes for {path}")
@@ -169,6 +199,7 @@ if __name__ == '__main__':
     parser.add_argument('-f', type=str, dest='file', metavar='file', help='Download samples listed in the provided file')
     args = parser.parse_args()
 
+    # Download meta.db file if it was not found.
     if not os.path.isfile(metadb_path):
         print("Downloading meta.db database for SoReL-20M")
         s3 = boto3.client('s3', config=Config(signature_version=UNSIGNED))
@@ -201,7 +232,7 @@ if __name__ == '__main__':
         sys.exit(0)
 
     download_samples(args.path, samples_list)
-
+    # Decompress samples and restore headers if requested.
     if args.decompress:
         decompress(args.path, decompressed_path)
         if args.restore:
