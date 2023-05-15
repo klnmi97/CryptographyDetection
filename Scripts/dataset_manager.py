@@ -220,6 +220,8 @@ if __name__ == '__main__':
 
     if args.decompress:
         decompressed_path = args.decompress
+        if not os.path.exists(decompressed_path):
+            os.makedirs(decompressed_path)
 
     if args.file:
         samples_list = read_file(args.file)
@@ -230,6 +232,9 @@ if __name__ == '__main__':
     if args.gen_list:
         write_chunks_to_files(samples_list, batches, args.path)
         sys.exit(0)
+
+    if not os.path.exists(args.path):
+            os.makedirs(args.path)
 
     download_samples(args.path, samples_list)
     # Decompress samples and restore headers if requested.
