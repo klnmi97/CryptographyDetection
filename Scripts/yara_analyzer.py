@@ -11,7 +11,7 @@ import argparse
 import logging
 import json
 
-DEFAULT_RULES_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'crypto_signatures.yara')
+DEFAULT_RULES_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'crypto_signatures.yar')
 
 def parse_yara_output(yara_output, file_name, rule_stats=None):
 
