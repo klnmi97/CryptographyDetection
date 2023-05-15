@@ -163,6 +163,8 @@ def main():
 
     if args.save:
         results_path = args.save
+        if not os.path.exists(results_path):
+            os.makedirs(results_path)
 
     total_files = count_files(args.path)
 
