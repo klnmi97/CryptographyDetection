@@ -204,7 +204,7 @@ if __name__ == '__main__':
         print("Downloading meta.db database for SoReL-20M")
         s3 = boto3.client('s3', config=Config(signature_version=UNSIGNED))
         try:
-            s3.download_file('sorel-20m', "09-DEC-2020/binaries/processed-data/meta.db", metadb_path)
+            s3.download_file('sorel-20m', "09-DEC-2020/processed-data/meta.db", metadb_path)
         except botocore.exceptions.ClientError as e:
             print("Error downloading meta.db. You can download it manually from s3://sorel-20m/09-DEC-2020/processed-data/meta.db and place it into the directory with this script.")
             sys.exit()
