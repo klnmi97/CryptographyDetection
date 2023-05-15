@@ -15,6 +15,7 @@ import contextlib
 import os
 import argparse
 import json
+import pipeline_utils
 
 root = logging.getLogger()
 
@@ -191,8 +192,8 @@ def main():
         tool_name = "yara"
         cache_file_yara = analysis_dirname + "_" + tool_name
         if args.cache:
-            yara_unpacked_raw = packing_analyzer.load_from_cache(cache_file_yara + "_u")
-            yara_raw = packing_analyzer.load_from_cache(cache_file_yara)
+            yara_unpacked_raw = pipeline_utils.load_from_cache(cache_file_yara + "_u")
+            yara_raw = pipeline_utils.load_from_cache(cache_file_yara)
         if not yara_unpacked_raw or not yara_raw:
             # Run yara
             with timer():
@@ -200,8 +201,8 @@ def main():
                 yara_raw = yara_analyzer.run(args.path)
             
             if args.cache:
-                packing_analyzer.cache_data_to_disk(cache_file_yara + "_u", yara_unpacked_raw)
-                packing_analyzer.cache_data_to_disk(cache_file_yara, yara_raw)
+                pipeline_utils.cache_data_to_disk(cache_file_yara + "_u", yara_unpacked_raw)
+                pipeline_utils.cache_data_to_disk(cache_file_yara, yara_raw)
 
         # Results for all samples: all + unpacked    
         yara_complete = merge_dicts(filter_keys(yara_raw, unpacked_samples), yara_unpacked_raw)
@@ -223,8 +224,8 @@ def main():
         # Use caching
         cache_file_cryfind = analysis_dirname + "_" + tool_name
         if args.cache:
-            cryfind_unpacked_raw = packing_analyzer.load_from_cache(cache_file_cryfind + "_u")
-            cryfind_raw = packing_analyzer.load_from_cache(cache_file_cryfind)
+            cryfind_unpacked_raw = pipeline_utils.load_from_cache(cache_file_cryfind + "_u")
+            cryfind_raw = pipeline_utils.load_from_cache(cache_file_cryfind)
         if not cryfind_unpacked_raw or not cryfind_raw:
             # Run measured analysis
             with timer():
@@ -232,8 +233,8 @@ def main():
                 cryfind_raw = cryfind_analyzer.run(args.path)
             # Cache raw results
             if args.cache:
-                packing_analyzer.cache_data_to_disk(cache_file_cryfind + "_u", cryfind_unpacked_raw)
-                packing_analyzer.cache_data_to_disk(cache_file_cryfind, cryfind_raw)
+                pipeline_utils.cache_data_to_disk(cache_file_cryfind + "_u", cryfind_unpacked_raw)
+                pipeline_utils.cache_data_to_disk(cache_file_cryfind, cryfind_raw)
         
         # Results for all samples: all + unpacked
         cryfind_complete = merge_dicts(filter_keys(cryfind_raw, unpacked_samples), cryfind_unpacked_raw)

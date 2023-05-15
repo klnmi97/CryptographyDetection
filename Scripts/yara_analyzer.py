@@ -1,3 +1,10 @@
+#!/usr/bin/env python
+""" Yara python package wrapper. 
+
+    Is disigned to be used as a part
+    of the pipeline. Use pipeline.py -h.
+"""
+
 import yara
 import os
 import argparse
@@ -22,14 +29,6 @@ def parse_yara_output(yara_output, file_name, rule_stats=None):
         #primitives.add(rules_map.get(match.rule, "Other"))
         if match.rule in rules_map:
             rule_stats.setdefault(file_name, set()).add(rules_map.get(match.rule))
-       
-
-        #print("Matched rule:", match.rule)
-        #print("Matched strings:")
-        #for string in match.strings:
-            #print("  - offset:", string[0])
-            #print("    value:", string[1])
-            #print("    identifier:", string[2])
             
 
 def analyze_file(filepath, rules, rule_stats=None):

@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+""" Cryfind python package wrapper. 
+
+    Is disigned to be used as a part
+    of the pipeline. Use pipeline.py -h.
+"""
 import argparse
 import os
 from crylib import find_const, find_api, pe_import, stackstrings
@@ -79,7 +85,7 @@ def handle_directory(path, exclude, stats=None):
                     #print(f"  - Skipping non-file: {file_path}")
 
 def run(filepath, exclude = list(), log = False):
-
+    """ Run cryfind analyzer """
     logging.info("Starting cryfind analyzer.")
 
     stats = {}
@@ -97,10 +103,7 @@ def run(filepath, exclude = list(), log = False):
     else:
         logging.error("Error: %s is not a valid path.", filepath)
 
-
     return stats
-    #for rule in stats:
-    #    print(f"{rule}: {stats[rule]}")
 
 
 def main():
