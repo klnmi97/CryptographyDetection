@@ -36,11 +36,21 @@ Repository to the thesis "Detecting cryptographic primitives in malicious Window
 
   Using the following command the script will download 10k samples from the samples_0.list to the temp directory, decompress them to the directory called analysis and restore header bytes. Thus the analysis destination for the pipeline script will be the analysis directory. Ideally delete the temp directory afterwards or do not reuse it for the next batches.
 
-  ```python dataset_manager.py -f samples_0.list -d analysis -r temp```
+  ```python dataset_manager.py -f samples_0.list -d analysis -r temp
+     python dataset_manager.py -f samples_1.list -d analysis -r temp1
+     python dataset_manager.py -f samples_2.list -d analysis1 -r temp2
+     python dataset_manager.py -f samples_3.list -d analysis1 -r temp3
+     python dataset_manager.py -f samples_4.list -d analysis2 -r temp4
+     python dataset_manager.py -f samples_5.list -d analysis2 -r temp5
+     ...
+  ```
 
 - After downloading samples you can run the pipeline. You can start several command line windows at a time for different directories.
 
-  ``` python pipeline.py analysis -s results ```
+  ``` python pipeline.py analysis -s results
+      python pipeline.py analysis1 -s results
+      python pipeline.py analysis2 -s results
+  ```
 
   You can also add `-f droppers.list` to get results without samples marked as droppers and downloaders.
 
